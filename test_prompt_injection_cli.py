@@ -2,7 +2,7 @@
 """
 Unit tests for the Prompt Injection Library CLI.
 """
-# pylint: disable=redefined-outer-name,unused-argument,too-few-public-methods
+# pylint: disable=redefined-outer-name,unused-argument,too-few-public-methods,too-many-lines
 
 import json
 import os
@@ -792,6 +792,363 @@ class TestFileOperationsSecurity:
             content = f.read()
         # Pretty printed JSON has newlines
         assert '\n' in content
+
+
+# =============================================================================
+# Additional Unit Tests
+# =============================================================================
+
+class TestCombinedFilters:
+    """Tests for combined filtering options."""
+
+    def test_filter_by_category_and_tag(self, mock_data_file, capsys):
+        """Should handle combined category and tag filter."""
+        args = Namespace(category="Test Category", tag="test")
+        cli.cmd_list(args)
+        captured = capsys.readouterr()
+
+        # Only injection 1 matches both Test Category and 'test' tag
+        assert "Test Injection 1" in captured.out
+        assert "Test Injection 5" not in captured.out  # Test Category but no 'test' tag
+        assert "Test Injection 2" not in captured.out  # Wrong category
+
+    def test_filter_by_nonexistent_tag(self, mock_data_file, capsys):
+        """Should return empty when tag doesn't exist."""
+        args = Namespace(category=None, tag="nonexistent_tag_xyz")
+        cli.cmd_list(args)
+        captured = capsys.readouterr()
+
+        assert "No injections found" in captured.out
+
+
+class TestCommandAliases:
+    """Tests for command aliases."""
+
+    def test_find_alias_for_search(self, mock_data_file, capsys, monkeypatch):
+        """Should accept 'find' as alias for 'search'."""
+        monkeypatch.setattr(sys, 'argv', ['prompt_injection_cli.py', 'find', 'test'])
+        cli.main()
+        captured = capsys.readouterr()
+        assert "Search Results" in captured.out
+
+    def test_cats_alias_for_categories(self, mock_data_file, capsys, monkeypatch):
+        """Should accept 'cats' as alias for 'categories'."""
+        monkeypatch.setattr(sys, 'argv', ['prompt_injection_cli.py', 'cats'])
+        cli.main()
+        captured = capsys.readouterr()
+        assert "Categories" in captured.out
+
+    def test_new_alias_for_add(self, mock_data_file, capsys, monkeypatch):
+        """Should accept 'new' as alias for 'add'."""
+        monkeypatch.setattr(sys, 'argv', ['prompt_injection_cli.py', 'new'])
+        with mock.patch('builtins.input', return_value=""):
+            with pytest.raises(SystemExit):
+                cli.main()
+
+    def test_update_alias_for_edit(self, mock_data_file, capsys, monkeypatch):
+        """Should accept 'update' as alias for 'edit'."""
+        monkeypatch.setattr(sys, 'argv', ['prompt_injection_cli.py', 'update', '999'])
+        with pytest.raises(SystemExit) as exc_info:
+            cli.main()
+        assert exc_info.value.code == 1
+
+    def test_rm_alias_for_delete(self, mock_data_file, capsys, monkeypatch):
+        """Should accept 'rm' as alias for 'delete'."""
+        monkeypatch.setattr(sys, 'argv', ['prompt_injection_cli.py', 'rm', '999', '-f'])
+        with pytest.raises(SystemExit) as exc_info:
+            cli.main()
+        assert exc_info.value.code == 1
+
+    def test_info_alias_for_stats(self, mock_data_file, capsys, monkeypatch):
+        """Should accept 'info' as alias for 'stats'."""
+        monkeypatch.setattr(sys, 'argv', ['prompt_injection_cli.py', 'info'])
+        cli.main()
+        captured = capsys.readouterr()
+        assert "Library Statistics" in captured.out
+
+
+class TestExportEdgeCases:
+    """Tests for export edge cases."""
+
+    def test_exports_empty_data(self, monkeypatch, tmp_path, capsys):
+        """Should handle exporting empty data."""
+        empty_file = tmp_path / "empty.json"
+        monkeypatch.setattr(cli, 'get_data_file_path', lambda: empty_file)
+
+        output_file = tmp_path / "export.json"
+        args = Namespace(output=str(output_file), format='json', category=None)
+        cli.cmd_export(args)
+
+        with open(output_file, 'r', encoding='utf-8') as f:
+            exported = json.load(f)
+        assert exported['injections'] == []
+
+    def test_exports_nonexistent_category(self, mock_data_file, tmp_path, capsys):
+        """Should export empty list for nonexistent category."""
+        output_file = tmp_path / "export.json"
+        args = Namespace(
+            output=str(output_file), format='json', category='NonexistentCategory'
+        )
+        cli.cmd_export(args)
+
+        with open(output_file, 'r', encoding='utf-8') as f:
+            exported = json.load(f)
+        assert len(exported['injections']) == 0
+
+
+class TestImportEdgeCases:
+    """Tests for import edge cases."""
+
+    def test_imports_empty_file(self, mock_data_file, tmp_path, capsys):
+        """Should handle importing empty injections list."""
+        import_file = tmp_path / "import.json"
+        import_data = {"injections": []}
+        with open(import_file, 'w', encoding='utf-8') as f:
+            json.dump(import_data, f)
+
+        args = Namespace(input=str(import_file))
+        cli.cmd_import_data(args)
+
+        captured = capsys.readouterr()
+        assert "0 injection(s)" in captured.out
+
+    def test_imports_multiple_injections(self, mock_data_file, tmp_path):
+        """Should import multiple injections with sequential IDs."""
+        import_file = tmp_path / "import.json"
+        import_data = {
+            "injections": [
+                {
+                    "name": "Imported 1",
+                    "category": "New Cat",
+                    "description": "desc1",
+                    "payload": "payload1",
+                    "variants": [],
+                    "tags": ["tag1"]
+                },
+                {
+                    "name": "Imported 2",
+                    "category": "New Cat",
+                    "description": "desc2",
+                    "payload": "payload2",
+                    "variants": [],
+                    "tags": ["tag2"]
+                }
+            ]
+        }
+        with open(import_file, 'w', encoding='utf-8') as f:
+            json.dump(import_data, f)
+
+        args = Namespace(input=str(import_file))
+        cli.cmd_import_data(args)
+
+        data = cli.load_data()
+        assert len(data['injections']) == 5  # 3 + 2 imported
+        imported_ids = [i['id'] for i in data['injections'] if 'Imported' in i['name']]
+        # IDs should be sequential and unique
+        assert len(imported_ids) == 2
+        assert imported_ids[1] == imported_ids[0] + 1
+
+    def test_handles_malformed_import_gracefully(self, mock_data_file, tmp_path, capsys):
+        """Should handle import file missing injections key."""
+        import_file = tmp_path / "import.json"
+        import_data = {"not_injections": []}
+        with open(import_file, 'w', encoding='utf-8') as f:
+            json.dump(import_data, f)
+
+        args = Namespace(input=str(import_file))
+        cli.cmd_import_data(args)
+
+        # Should complete without error, importing 0 items
+        captured = capsys.readouterr()
+        assert "0 injection(s)" in captured.out
+
+
+class TestAddEdgeCases:
+    """Tests for add command edge cases."""
+
+    def test_rejects_new_category_on_decline(self, mock_data_file, capsys):
+        """Should abort when user declines new category."""
+        inputs = [
+            "Test Name",
+            "Declined Category",
+            "n",  # Decline new category
+        ]
+
+        with mock.patch('builtins.input', side_effect=inputs):
+            args = Namespace()
+            with pytest.raises(SystemExit) as exc_info:
+                cli.cmd_add(args)
+
+            assert exc_info.value.code == 1
+
+    def test_exits_on_empty_category(self, mock_data_file, capsys):
+        """Should exit if category is empty."""
+        inputs = [
+            "Test Name",
+            "",  # Empty category
+        ]
+
+        with mock.patch('builtins.input', side_effect=inputs):
+            args = Namespace()
+            with pytest.raises(SystemExit) as exc_info:
+                cli.cmd_add(args)
+
+            assert exc_info.value.code == 1
+
+    def test_exits_on_empty_description(self, mock_data_file, capsys):
+        """Should exit if description is empty."""
+        inputs = [
+            "Test Name",
+            "Test Category",  # Existing category
+            "",  # Empty description
+        ]
+
+        with mock.patch('builtins.input', side_effect=inputs):
+            args = Namespace()
+            with pytest.raises(SystemExit) as exc_info:
+                cli.cmd_add(args)
+
+            assert exc_info.value.code == 1
+
+    def test_exits_on_empty_payload(self, mock_data_file, capsys):
+        """Should exit if payload is empty."""
+        inputs = [
+            "Test Name",
+            "Test Category",
+            "Test description",
+            "",  # Empty payload
+        ]
+
+        with mock.patch('builtins.input', side_effect=inputs):
+            args = Namespace()
+            with pytest.raises(SystemExit) as exc_info:
+                cli.cmd_add(args)
+
+            assert exc_info.value.code == 1
+
+
+class TestEditEdgeCases:
+    """Tests for edit command edge cases."""
+
+    def test_edit_add_new_category_on_confirm(self, mock_data_file, capsys):
+        """Should add new category when user confirms during edit."""
+        inputs = [
+            "",  # Keep name
+            "Brand New Edit Category",  # New category
+            "y",  # Confirm new category
+            "",  # Keep description
+            "",  # Keep payload
+            "n",  # Don't replace variants
+            "",  # Keep tags
+        ]
+
+        with mock.patch('builtins.input', side_effect=inputs):
+            args = Namespace(id=1)
+            cli.cmd_edit(args)
+
+        data = cli.load_data()
+        assert "Brand New Edit Category" in data['categories']
+        edited = next(i for i in data['injections'] if i['id'] == 1)
+        assert edited['category'] == "Brand New Edit Category"
+
+    def test_edit_replaces_variants(self, mock_data_file, capsys):
+        """Should replace variants when user chooses to."""
+        inputs = [
+            "",  # Keep name
+            "",  # Keep category
+            "",  # Keep description
+            "",  # Keep payload
+            "y",  # Replace variants
+            "new variant 1",
+            "new variant 2",
+            "",  # End variants
+            "",  # Keep tags
+        ]
+
+        with mock.patch('builtins.input', side_effect=inputs):
+            args = Namespace(id=1)
+            cli.cmd_edit(args)
+
+        data = cli.load_data()
+        edited = next(i for i in data['injections'] if i['id'] == 1)
+        assert edited['variants'] == ["new variant 1", "new variant 2"]
+
+
+class TestSearchEdgeCases:
+    """Tests for search edge cases."""
+
+    def test_search_by_category_name(self, mock_data_file, capsys):
+        """Should find injections by category name."""
+        args = Namespace(query="Another Category")
+        cli.cmd_search(args)
+        captured = capsys.readouterr()
+
+        assert "Test Injection 2" in captured.out
+
+    def test_search_empty_query(self, mock_data_file, capsys):
+        """Should handle empty search query (matches all)."""
+        args = Namespace(query="")
+        cli.cmd_search(args)
+        captured = capsys.readouterr()
+
+        # Empty query matches everything
+        assert "Test Injection 1" in captured.out
+        assert "Test Injection 2" in captured.out
+        assert "Test Injection 5" in captured.out
+
+
+class TestMetadataHandling:
+    """Tests for metadata handling."""
+
+    def test_metadata_preserved_on_save(self, mock_data_file):
+        """Should preserve metadata fields on save."""
+        data = cli.load_data()
+        original_version = data['metadata']['version']
+        original_disclaimer = data['metadata']['disclaimer']
+
+        cli.save_data(data)
+        data = cli.load_data()
+
+        assert data['metadata']['version'] == original_version
+        assert data['metadata']['disclaimer'] == original_disclaimer
+
+    def test_total_injections_updated_on_save(self, mock_data_file):
+        """Should update total_injections count on save."""
+        data = cli.load_data()
+        data['injections'].append({
+            "id": 100,
+            "name": "New One",
+            "category": "Test",
+            "description": "desc",
+            "payload": "pay",
+            "variants": [],
+            "tags": []
+        })
+
+        cli.save_data(data)
+        data = cli.load_data()
+
+        assert data['metadata']['total_injections'] == 4
+
+
+class TestColorClass:
+    """Additional tests for Colors class."""
+
+    def test_all_colors_defined(self):
+        """Should have all expected color codes defined."""
+        expected_colors = [
+            'HEADER', 'BLUE', 'CYAN', 'GREEN', 'YELLOW', 'RED', 'ENDC', 'BOLD', 'DIM'
+        ]
+        for color in expected_colors:
+            assert hasattr(cli.Colors, color)
+            assert isinstance(getattr(cli.Colors, color), str)
+
+    def test_colors_contain_escape_sequence(self):
+        """All colors should contain ANSI escape sequence."""
+        colors = ['HEADER', 'BLUE', 'CYAN', 'GREEN', 'YELLOW', 'RED', 'BOLD', 'DIM']
+        for color in colors:
+            value = getattr(cli.Colors, color)
+            assert '\033[' in value, f"{color} should contain ANSI escape sequence"
 
 
 if __name__ == '__main__':
