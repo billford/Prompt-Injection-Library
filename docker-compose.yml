@@ -1,0 +1,11 @@
+services:
+  prompt-injection:
+    build: .
+    image: prompt-injection-library
+    container_name: prompt-injection-cli
+    # Mount local injections.json for persistence
+    volumes:
+      - ./injections.json:/app/injections.json
+    # Interactive mode for add/edit commands
+    stdin_open: true
+    tty: true
