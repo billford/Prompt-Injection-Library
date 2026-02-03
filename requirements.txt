@@ -1,0 +1,2 @@
+# Prompt Injection Library CLI
+# No external dependencies required - uses Python 3.6+ standard library only
