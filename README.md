@@ -9,6 +9,63 @@ A command-line tool for managing and exploring prompt injection techniques. For 
 chmod +x prompt_injection_cli.py
 ```
 
+## Docker
+
+### Build the image
+
+```bash
+docker build -t prompt-injection-library .
+```
+
+### Run commands
+
+```bash
+# Show help
+docker run --rm prompt-injection-library
+
+# List all injections
+docker run --rm prompt-injection-library list
+
+# Search for injections
+docker run --rm prompt-injection-library search "ignore instructions"
+
+# Show a specific injection
+docker run --rm prompt-injection-library show 5
+
+# Filter by category
+docker run --rm prompt-injection-library list -c Jailbreak
+
+# Show statistics
+docker run --rm prompt-injection-library stats
+```
+
+### Persist changes
+
+Mount your local `injections.json` to persist additions/edits:
+
+```bash
+# Add a new injection (interactive)
+docker run --rm -it -v $(pwd)/injections.json:/app/injections.json prompt-injection-library add
+
+# Edit an injection
+docker run --rm -it -v $(pwd)/injections.json:/app/injections.json prompt-injection-library edit 3
+
+# Export to file
+docker run --rm -v $(pwd):/data prompt-injection-library export -o /data/backup.json
+```
+
+### Using Docker Compose
+
+```bash
+# Build
+docker compose build
+
+# Run commands
+docker compose run --rm prompt-injection list
+docker compose run --rm prompt-injection search "jailbreak"
+docker compose run --rm prompt-injection stats
+```
+
 ## Usage
 
 ```bash
