@@ -1,0 +1,5 @@
+[bandit]
+# Skip assert_used (B101) warnings in test files
+# Using assert in tests is standard practice and not a security concern
+skips: B101
+exclude_dirs: .git,venv,__pycache__
