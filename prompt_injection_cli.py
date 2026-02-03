@@ -8,13 +8,13 @@ For educational and defensive security purposes only.
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
-# ANSI color codes for terminal output
-class Colors:
+
+class Colors:  # pylint: disable=too-few-public-methods
+    """ANSI color codes for terminal output."""
     HEADER = '\033[95m'
     BLUE = '\033[94m'
     CYAN = '\033[96m'
@@ -42,7 +42,7 @@ def load_data():
                 "version": "1.0.0",
                 "last_updated": datetime.now().strftime("%Y-%m-%d"),
                 "total_injections": 0,
-                "disclaimer": "This library is for educational and defensive security purposes only."
+                "disclaimer": "For educational and defensive security purposes only."
             }
         }
 
@@ -76,9 +76,12 @@ def print_header(text):
 
 def print_injection_brief(injection):
     """Print a brief summary of an injection."""
-    print(f"  {Colors.BOLD}[{injection['id']:3d}]{Colors.ENDC} {Colors.GREEN}{injection['name']}{Colors.ENDC}")
+    inj_id = injection['id']
+    name = injection['name']
+    print(f"  {Colors.BOLD}[{inj_id:3d}]{Colors.ENDC} {Colors.GREEN}{name}{Colors.ENDC}")
     print(f"       {Colors.DIM}Category: {injection['category']}{Colors.ENDC}")
-    print(f"       {Colors.DIM}Tags: {', '.join(injection.get('tags', []))}{Colors.ENDC}")
+    tags = ', '.join(injection.get('tags', []))
+    print(f"       {Colors.DIM}Tags: {tags}{Colors.ENDC}")
     print()
 
 
@@ -86,9 +89,12 @@ def print_injection_detail(injection):
     """Print detailed information about an injection."""
     print(f"\n{Colors.BOLD}{Colors.GREEN}{'─'*60}{Colors.ENDC}")
     print(f"{Colors.BOLD}ID:{Colors.ENDC} {injection['id']}")
-    print(f"{Colors.BOLD}Name:{Colors.ENDC} {Colors.GREEN}{injection['name']}{Colors.ENDC}")
-    print(f"{Colors.BOLD}Category:{Colors.ENDC} {Colors.YELLOW}{injection['category']}{Colors.ENDC}")
-    print(f"{Colors.BOLD}Tags:{Colors.ENDC} {Colors.CYAN}{', '.join(injection.get('tags', []))}{Colors.ENDC}")
+    name = injection['name']
+    print(f"{Colors.BOLD}Name:{Colors.ENDC} {Colors.GREEN}{name}{Colors.ENDC}")
+    category = injection['category']
+    print(f"{Colors.BOLD}Category:{Colors.ENDC} {Colors.YELLOW}{category}{Colors.ENDC}")
+    tags = ', '.join(injection.get('tags', []))
+    print(f"{Colors.BOLD}Tags:{Colors.ENDC} {Colors.CYAN}{tags}{Colors.ENDC}")
     print(f"\n{Colors.BOLD}Description:{Colors.ENDC}")
     print(f"  {injection['description']}")
     print(f"\n{Colors.BOLD}Payload:{Colors.ENDC}")
@@ -113,7 +119,11 @@ def cmd_list(args):
 
     # Filter by tag if specified
     if args.tag:
-        injections = [i for i in injections if args.tag.lower() in [t.lower() for t in i.get('tags', [])]]
+        tag_lower = args.tag.lower()
+        injections = [
+            i for i in injections
+            if tag_lower in [t.lower() for t in i.get('tags', [])]
+        ]
 
     if not injections:
         print(f"{Colors.YELLOW}No injections found matching the criteria.{Colors.ENDC}")
@@ -169,7 +179,7 @@ def cmd_search(args):
         print_injection_brief(injection)
 
 
-def cmd_categories(args):
+def cmd_categories(_args):
     """List all available categories."""
     data = load_data()
 
@@ -188,7 +198,7 @@ def cmd_categories(args):
     print()
 
 
-def cmd_tags(args):
+def cmd_tags(_args):
     """List all available tags."""
     data = load_data()
 
@@ -206,7 +216,7 @@ def cmd_tags(args):
     print()
 
 
-def cmd_add(args):
+def cmd_add(_args):
     """Add a new prompt injection."""
     data = load_data()
 
@@ -226,7 +236,8 @@ def cmd_add(args):
 
     # Add new category if it doesn't exist
     if category not in data['categories']:
-        add_cat = input(f"{Colors.YELLOW}Category '{category}' is new. Add it? (y/n):{Colors.ENDC} ").strip().lower()
+        prompt = f"{Colors.YELLOW}Category '{category}' is new. Add it? (y/n):{Colors.ENDC} "
+        add_cat = input(prompt).strip().lower()
         if add_cat == 'y':
             data['categories'].append(category)
         else:
@@ -271,7 +282,8 @@ def cmd_add(args):
     data['injections'].append(new_injection)
     save_data(data)
 
-    print(f"\n{Colors.GREEN}Successfully added injection with ID {new_injection['id']}.{Colors.ENDC}")
+    new_id = new_injection['id']
+    print(f"\n{Colors.GREEN}Successfully added injection with ID {new_id}.{Colors.ENDC}")
     print_injection_detail(new_injection)
 
 
@@ -300,7 +312,8 @@ def cmd_edit(args):
     new_category = input(f"{Colors.BOLD}New category:{Colors.ENDC} ").strip()
     if new_category:
         if new_category not in data['categories']:
-            add_cat = input(f"{Colors.YELLOW}Add new category '{new_category}'? (y/n):{Colors.ENDC} ").strip().lower()
+            prompt = f"{Colors.YELLOW}Add new category '{new_category}'? (y/n):{Colors.ENDC} "
+            add_cat = input(prompt).strip().lower()
             if add_cat == 'y':
                 data['categories'].append(new_category)
         injection['category'] = new_category
@@ -358,7 +371,8 @@ def cmd_delete(args):
     print_injection_detail(injection)
 
     if not args.force:
-        confirm = input(f"{Colors.YELLOW}Are you sure you want to delete this injection? (y/n):{Colors.ENDC} ").strip().lower()
+        prompt = f"{Colors.YELLOW}Are you sure you want to delete? (y/n):{Colors.ENDC} "
+        confirm = input(prompt).strip().lower()
         if confirm != 'y':
             print(f"{Colors.DIM}Deletion cancelled.{Colors.ENDC}")
             return
@@ -400,7 +414,8 @@ def cmd_export(args):
                 f.write(f"Tags: {', '.join(injection.get('tags', []))}\n")
                 f.write("-" * 50 + "\n\n")
 
-    print(f"{Colors.GREEN}Successfully exported {len(injections)} injection(s) to {output_path}.{Colors.ENDC}")
+    count = len(injections)
+    print(f"{Colors.GREEN}Exported {count} injection(s) to {output_path}.{Colors.ENDC}")
 
 
 def cmd_import_data(args):
@@ -431,7 +446,7 @@ def cmd_import_data(args):
     print(f"{Colors.GREEN}Successfully imported {imported} injection(s).{Colors.ENDC}")
 
 
-def cmd_stats(args):
+def cmd_stats(_args):
     """Show statistics about the library."""
     data = load_data()
 
@@ -448,8 +463,8 @@ def cmd_stats(args):
 
     print(f"\n{Colors.BOLD}Injections by Category:{Colors.ENDC}")
     for cat, count in sorted(category_counts.items(), key=lambda x: -x[1]):
-        bar = '█' * count
-        print(f"  {cat:25} {Colors.GREEN}{bar}{Colors.ENDC} {count}")
+        chart_bar = '█' * count
+        print(f"  {cat:25} {Colors.GREEN}{chart_bar}{Colors.ENDC} {count}")
 
     # Count unique tags
     all_tags = set()
@@ -490,23 +505,31 @@ For educational and defensive security purposes only.
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     # List command
-    list_parser = subparsers.add_parser('list', aliases=['ls'], help='List all prompt injections')
+    list_parser = subparsers.add_parser(
+        'list', aliases=['ls'], help='List all prompt injections'
+    )
     list_parser.add_argument('-c', '--category', help='Filter by category')
     list_parser.add_argument('-t', '--tag', help='Filter by tag')
     list_parser.set_defaults(func=cmd_list)
 
     # Show command
-    show_parser = subparsers.add_parser('show', aliases=['get'], help='Show details of a specific injection')
+    show_parser = subparsers.add_parser(
+        'show', aliases=['get'], help='Show details of a specific injection'
+    )
     show_parser.add_argument('id', type=int, help='Injection ID')
     show_parser.set_defaults(func=cmd_show)
 
     # Search command
-    search_parser = subparsers.add_parser('search', aliases=['find'], help='Search injections by keyword')
+    search_parser = subparsers.add_parser(
+        'search', aliases=['find'], help='Search injections by keyword'
+    )
     search_parser.add_argument('query', help='Search query')
     search_parser.set_defaults(func=cmd_search)
 
     # Categories command
-    cat_parser = subparsers.add_parser('categories', aliases=['cats'], help='List all categories')
+    cat_parser = subparsers.add_parser(
+        'categories', aliases=['cats'], help='List all categories'
+    )
     cat_parser.set_defaults(func=cmd_categories)
 
     # Tags command
@@ -514,34 +537,50 @@ For educational and defensive security purposes only.
     tags_parser.set_defaults(func=cmd_tags)
 
     # Add command
-    add_parser = subparsers.add_parser('add', aliases=['new'], help='Add a new prompt injection')
+    add_parser = subparsers.add_parser(
+        'add', aliases=['new'], help='Add a new prompt injection'
+    )
     add_parser.set_defaults(func=cmd_add)
 
     # Edit command
-    edit_parser = subparsers.add_parser('edit', aliases=['update'], help='Edit an existing injection')
+    edit_parser = subparsers.add_parser(
+        'edit', aliases=['update'], help='Edit an existing injection'
+    )
     edit_parser.add_argument('id', type=int, help='Injection ID')
     edit_parser.set_defaults(func=cmd_edit)
 
     # Delete command
-    delete_parser = subparsers.add_parser('delete', aliases=['rm', 'remove'], help='Delete an injection')
+    delete_parser = subparsers.add_parser(
+        'delete', aliases=['rm', 'remove'], help='Delete an injection'
+    )
     delete_parser.add_argument('id', type=int, help='Injection ID')
-    delete_parser.add_argument('-f', '--force', action='store_true', help='Skip confirmation')
+    delete_parser.add_argument(
+        '-f', '--force', action='store_true', help='Skip confirmation'
+    )
     delete_parser.set_defaults(func=cmd_delete)
 
     # Export command
-    export_parser = subparsers.add_parser('export', help='Export injections to a file')
-    export_parser.add_argument('-o', '--output', default='exported_injections.json', help='Output file path')
-    export_parser.add_argument('-f', '--format', choices=['json', 'txt'], default='json', help='Output format')
+    export_parser = subparsers.add_parser('export', help='Export to a file')
+    export_parser.add_argument(
+        '-o', '--output', default='exported_injections.json', help='Output file'
+    )
+    export_parser.add_argument(
+        '-f', '--format', choices=['json', 'txt'], default='json', help='Format'
+    )
     export_parser.add_argument('-c', '--category', help='Export only this category')
     export_parser.set_defaults(func=cmd_export)
 
     # Import command
-    import_parser = subparsers.add_parser('import', help='Import injections from a JSON file')
-    import_parser.add_argument('-i', '--input', required=True, help='Input file path')
+    import_parser = subparsers.add_parser('import', help='Import from JSON')
+    import_parser.add_argument(
+        '-i', '--input', required=True, help='Input file path'
+    )
     import_parser.set_defaults(func=cmd_import_data)
 
     # Stats command
-    stats_parser = subparsers.add_parser('stats', aliases=['info'], help='Show library statistics')
+    stats_parser = subparsers.add_parser(
+        'stats', aliases=['info'], help='Show library statistics'
+    )
     stats_parser.set_defaults(func=cmd_stats)
 
     args = parser.parse_args()
